@@ -14,7 +14,6 @@
 
 #define INCREMENT 100
 
-#define ZERO_PWM 1400 //This corresponds to about 1.7V
 #define MAX_PWM 3200
 #define MIN_PWM 0
 
@@ -26,15 +25,21 @@
 #define START_THROTTLE 6
 #define START_THROTTLE_TIME_ms 100
 
+#define DEBUG Serial1
+
 // Need to use two throttle parameters as the static friction prevents
 // the car from driving slow enough to be controllable on a small track
-int commanded_throttle = ZERO_PWM; // throttle received over serial
-int applied_throttle = ZERO_PWM; // thrtottle sent to the motors
-int prev_throttle = ZERO_PWM;
+
+int zero_pwm_steer = 1400; //This corresponds to about 1.7V
+int zero_pwm_throttle = 1050; //This corresponds to about 1.7V
+
+int commanded_throttle = zero_pwm_throttle; // throttle received over serial
+int applied_throttle = zero_pwm_throttle; // thrtottle sent to the motors
+int prev_throttle = zero_pwm_throttle;
 bool jump_start = false;
 
-int steering = ZERO_PWM;
-int prev_steering = ZERO_PWM;
+int steering = zero_pwm_steer;
+int prev_steering = zero_pwm_steer;
 bool stopped = false;
 
 int state = 1;
@@ -45,18 +50,42 @@ uint8_t character;
 uint8_t i = 0;
 uint32_t cmd_strength = 0;
 
-//int increment = 100;
-int increment = 1200;
-
 unsigned long start_time_ms = 0;
 unsigned long current_time_ms = 0;
 unsigned long prev_time_ms = 0;
+
+
+void checkConfig() {
+  while (Serial.available()) {
+    String line = Serial.readStringUntil('\n');
+    line.trim();
+
+    if (line.startsWith("CONFIG")) {
+      int firstComma = line.indexOf(',');
+      int secondComma = line.indexOf(',', firstComma + 1);
+
+      if (firstComma == -1 || secondComma == -1) {
+        Serial.println("CONFIG format error");
+        return;
+      }
+
+      int throttle_zero = line.substring(firstComma + 1, secondComma).toInt();
+      int steer_zero    = line.substring(secondComma + 1).toInt();
+
+      zero_pwm_throttle = throttle_zero;
+      zero_pwm_steer = steer_zero;
+
+      Serial.print("Config updated: ");
+      Serial.println(line);
+    }
+  }
+}
+
 
 void setup() {
   Serial.begin(115200);
 
   pinMode(LED_PIN, OUTPUT);
-
   // Set pwmchannel to use,  frequency in Hz, number of bits)
   ledcSetup(PWM_CHNL_THROTTLE, PWM_FREQ_HZ, PWM_BIT_DEPTH);
   ledcSetup(PWM_CHNL_STEERING, PWM_FREQ_HZ, PWM_BIT_DEPTH);
@@ -69,101 +98,32 @@ void setup() {
 void loop() {
 
   // Receiving a command from laptop:
-  if (Serial.available() > 0){
+  if (Serial.available()) {
+  String cmd = Serial.readStringUntil('\n');
+  int comma = cmd.indexOf(',');
+  if (comma > 0) {
+    int t = cmd.substring(0, comma).toInt();   // -1000 .. 1000
+    int s = cmd.substring(comma + 1).toInt();  // -1000 .. 1000
 
-    // Read a command from serial. Commands are formatted as 'ax' where
-    // a is a character determining command type and x is a numerical
-    // indicating command strength percentage in increments of 10% 
-    // this is (mapped to PWM);
-    /*
-    Command format is direction (forward, backward) strength steering 
-    (left, right) strength
+    commanded_throttle = zero_pwm_throttle + t; // map around neutral
+    steering = zero_pwm_steer + s;
 
-    For example:
-     'f2l0' : forward 2; left 0 (i.e. straight)
-     'b3r2' : backward 3; right 2
-    */
-    i = 0;
-    character = Serial.read();
-    while (character != '\n'){
-      // Turn LED on while receiving a command.
-      digitalWrite(LED_PIN, HIGH);
-
-      cmd_buffer[i] = character;
-      i++;
-      character = Serial.read();
-
-      //In case we are receiving more characters than expected stop the
-      //robot.
-      if (i > MAX_BUFF_LEN){
-        cmd_buffer[0] = 's';
-        cmd_buffer[1] = '0';
-        cmd_buffer[2] = 's';
-        cmd_buffer[3] = '0';
-        break;
-      }
-    }
-
-    // **** Parse the commands:
-
-    // I subtract 48 because ASCII(0) = 48
-    cmd_strength = (cmd_buffer[1] - 48 + 1) * INCREMENT;
-    stopped = false;
-
-    switch (cmd_buffer[0]) {
-      case 'f': // forward PWM is between MIN_PWM and ZERO_PWM
-        commanded_throttle = ZERO_PWM - cmd_strength;
-        break;
-      case 'b': // backward PWM is between ZERO_PWM and MAX_PWM
-        commanded_throttle = ZERO_PWM + cmd_strength;
-        break;
-      default: //stop
-        commanded_throttle = ZERO_PWM - 50 + ((cmd_strength - 100) / 10);
-        stopped = true;
-        break;
-    }
-
-    cmd_strength = (cmd_buffer[3] - 48 + 1) * INCREMENT;
-    switch (cmd_buffer[2]) {
-      case 'l': // left steer is between ZERO_PWM and MAX_PWM
-        steering = ZERO_PWM + cmd_strength;
-        break;
-      case 'r': // right steer is between MIN_PWM and ZERO_PWM
-        steering = ZERO_PWM - cmd_strength;
-        break;
-      default: //stop
-        steering = ZERO_PWM - 50 + ((cmd_strength - 100) / 10);
-        stopped = true;
-    }
-
-    if (true) {
-      if (!stopped){
-        Serial.print("ESP: Driving. Throttle: ");
-        Serial.print(commanded_throttle);
-        Serial.print(" Steering: ");
-        Serial.print(steering);
-      }
-    else{
-        // To investigate dead band s5 is ZERO_PWM while s0 is 
-        // ZERO_PWM - 50 and S9 is ZERO_PWM + 50
-        Serial.print("ESP: Stopped. Throttle: ");
-        Serial.print(commanded_throttle);
-        Serial.print(" Steering: ");
-        Serial.print(steering);
-      }
-    }
+    // constrain to valid PWM range
+    commanded_throttle = constrain(commanded_throttle, MIN_PWM, MAX_PWM);
+    steering = constrain(steering, MIN_PWM, MAX_PWM);
+    Serial.print("ESP: Driving. Throttle: ");
+    Serial.print(commanded_throttle);
+    Serial.print("Steering:");
+    Serial.println(steering);
   }
-  else {
-    digitalWrite(LED_PIN, LOW);
-  }
-
+}
 
   // state 0: wait to establish connection with RC controller
   if (state == 1){
     // pot read max value: 4096 (12bit)
-    commanded_throttle = ZERO_PWM;
-    applied_throttle = ZERO_PWM;
-    steering = ZERO_PWM;
+    commanded_throttle = zero_pwm_throttle;
+    applied_throttle = zero_pwm_throttle;
+    steering = zero_pwm_steer;
 
     // writes a duty cycle to the specified pwmchannel 
     // (which in this case was linked to pin 4)
@@ -177,7 +137,7 @@ void loop() {
     }
   }
 
-  // stat 2: drive
+  // state 2: drive
   if (state == 2){
     applied_throttle = commanded_throttle;
     

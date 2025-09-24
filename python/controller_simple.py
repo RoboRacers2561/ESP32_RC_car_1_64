@@ -4,7 +4,7 @@ import serial
 import time
 
 MAX_BUFF_LEN = 255
-SERIAL_PORT = "/dev/ttyUSB0"
+SERIAL_PORT = "/dev/tty.usbserial-140"
 SERIAL_BAUD = 115200
 
 connected = False
@@ -33,8 +33,8 @@ while (not connected):
 
 while (True):
     command = (input("Enter command (f, b, l, r, s): ")).encode()
-    if command in [x.encode() for x in ['f', 'b', 'l', 'r', 's']]:
-        write_serial(command)
+    if command[:1] in [x.encode() for x in ['f', 'b', 'l', 'r', 's']]:
+        write_serial(command + b"\n")
         print("Sent command: {}".format(command))
     else:
         print("Unrecognized command: {}".format(command))
