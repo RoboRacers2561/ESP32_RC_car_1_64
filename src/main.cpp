@@ -3,10 +3,10 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include "mqtt.h"
+#include "pins.h"
 
 
 #define WAIT_TIME_ms 2000 //How long to wait for the RC controller to connect
-
 
 const char* ssid = "ORBI27";
 const char* password = "UBC2022!";
@@ -25,12 +25,9 @@ const char* deviceId = "esp32-01";
 WiFiClient espClient;
 PubSubClient client(espClient);
  
-const int led_pin = 4;
+
 int zero_steer_digital = 119; //This corresponds to about 1.55V
 int zero_throttle_digital = 119; //This corresponds to about 1.55V
-
-const uint8_t DAC_STEERING_PIN = 26;
-const uint8_t DAC_THROTTLE_PIN = 25;
 
 int commanded_throttle = zero_throttle_digital; // throttle received over serial
 int steering = zero_steer_digital;
@@ -59,7 +56,7 @@ void initWiFi() {
 void setup() {
   Serial.begin(115200);
 
-  pinMode(led_pin, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
   
   pair_with_car();
   //Wifi setup 
@@ -84,7 +81,7 @@ int readThrottle(String cmd){
     String val = cmd.substring(2);
     return val.toInt();
   }
-  
+
   return -1;
   
 }

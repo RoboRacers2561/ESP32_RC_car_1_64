@@ -1,10 +1,12 @@
 //Networking callbacks for MQTT command parsing 
 #include <PubSubClient.h>
+#include <pins.h>
 
-
-extern const int led_pin;
 extern const char* deviceId;
 extern PubSubClient client;
+extern int commanded_throttle; 
+extern int steering;           
+
 
 void callback(char* topic, byte* payload, unsigned int length);
 void reconnect();
