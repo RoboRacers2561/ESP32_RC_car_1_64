@@ -3,10 +3,8 @@
 
 #define LED_PIN 4
 
-#define WAIT_TIME_ms 2000 //How long to wait for the RC controller to connect
-
-int zero_steer_digital = 119; //This corresponds to about 1.55V
-int zero_throttle_digital = 119; //This corresponds to about 1.55V
+int zero_steer_digital = 135; //This corresponds to about 1.7V Important: This must be the same as the python config
+int zero_throttle_digital = 135; //This corresponds to about 1.7V Important: This must be the same as the python config
 
 const uint8_t DAC_STEERING_PIN = 26;
 const uint8_t DAC_THROTTLE_PIN = 25;
@@ -18,7 +16,6 @@ void pair_with_car() {
   // Dummy function to illustrate the use of delay()
   dacWrite(DAC_STEERING_PIN, zero_steer_digital);
   dacWrite(DAC_THROTTLE_PIN, zero_throttle_digital);
-  delay(10000);
 }
 
 void setup() {
