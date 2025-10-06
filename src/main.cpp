@@ -1,10 +1,31 @@
 #include <Arduino.h>
 #include "driver/ledc.h"
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include "mqtt.h"
 
-#define LED_PIN 4
 
 #define WAIT_TIME_ms 2000 //How long to wait for the RC controller to connect
 
+
+const char* ssid = "ORBI27";
+const char* password = "UBC2022!";
+
+//WIFI config 
+IPAddress local_IP(10, 0, 0, 184);
+IPAddress gateway(10, 0, 0, 1);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primaryDNS(8, 8, 8, 8);   // optional
+IPAddress secondaryDNS(8, 8, 4, 4); // optional
+
+//MQTT Config
+const char* mqtt_server = "10.0.0.73"; // PC IP running Mosquitto
+const int mqtt_port = 1883;
+const char* deviceId = "esp32-01";
+WiFiClient espClient;
+PubSubClient client(espClient);
+ 
+const int led_pin = 4;
 int zero_steer_digital = 119; //This corresponds to about 1.55V
 int zero_throttle_digital = 119; //This corresponds to about 1.55V
 
@@ -21,14 +42,32 @@ void pair_with_car() {
   delay(10000);
 }
 
+void initWiFi() {
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
+    Serial.println("STA Failed to configure");
+  }
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi ..");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print('.');
+    delay(1000);
+  }
+  Serial.println(WiFi.localIP());
+}
+
 void setup() {
   Serial.begin(115200);
 
-  pinMode(LED_PIN, OUTPUT);
+  pinMode(led_pin, OUTPUT);
   
   pair_with_car();
+  //Wifi setup 
+  initWiFi();
+  // MQTT setup
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
 }
-
 
 /**
  * @brief Reads the throttle value from the command string.
@@ -63,11 +102,11 @@ int readSteering(String cmd){
 
 void loop() {
 
+  if (!client.connected()) reconnect();
+  client.loop();
+
   // Receiving a command from laptop:
   if (Serial.available()) {
-
-    // Turn led on
-    digitalWrite(LED_PIN, HIGH);
 
     String cmd = Serial.readStringUntil('\n');
     cmd.trim(); // remove any whitespace/newline characters
@@ -88,10 +127,6 @@ void loop() {
       Serial.print("ESP: Updated steering to ");
       Serial.println(steering);
     }
-  }
-  else {
-    // Turn led off
-    digitalWrite(LED_PIN, LOW);
   }
 }
 
