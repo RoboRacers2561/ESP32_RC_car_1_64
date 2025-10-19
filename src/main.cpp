@@ -7,21 +7,27 @@
 
 
 #define WAIT_TIME_ms 2000 //How long to wait for the RC controller to connect
-
+#ifdef UBC
+const char* ssid = "UBCSECURE";
+const char* password = "......"; 
+#else
 const char* ssid = "ORBI27";
-const char* password = "UBC2022!";
+const char* password = "UBC2022!"; 
+#endif 
 
 //WIFI config 
-IPAddress local_IP(10, 0, 0, 184);
+IPAddress local_IP(10, 0, 0, IP_ADDR_LAST_OCTET);
 IPAddress gateway(10, 0, 0, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);   // optional
 IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
 //MQTT Config
+#ifdef IMAC
 const char* mqtt_server = "10.0.0.73"; // PC IP running Mosquitto
+#endif
 const int mqtt_port = 1883;
-const char* deviceId = "esp32-01";
+const char* deviceId = DEVICE_ID;
 WiFiClient espClient;
 PubSubClient client(espClient);
  
