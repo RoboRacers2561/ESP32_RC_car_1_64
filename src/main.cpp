@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "driver/ledc.h"
 #include <WiFi.h>
-#include <PubSubClient.h>
+
 #include "mqtt.h"
 #include "pins.h"
 
@@ -24,7 +24,7 @@ IPAddress secondaryDNS(8, 8, 4, 4); // optional
 
 //MQTT Config
 #ifdef IMAC
-const char* mqtt_server = "10.0.0.73"; // PC IP running Mosquitto
+const char* mqtt_server = "10.0.0.26"; // PC IP running Mosquitto
 #endif
 const int mqtt_port = 1883;
 const char* deviceId = DEVICE_ID;
