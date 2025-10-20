@@ -6,34 +6,8 @@
 #include "pins.h"
 
 
-#define WAIT_TIME_ms 2000 //How long to wait for the RC controller to connect
-#ifdef UBC
-const char* ssid = "UBCSECURE";
-const char* password = "......"; 
-#else
-const char* ssid = "ORBI27";
-const char* password = "UBC2022!"; 
-#endif 
-
-//WIFI config 
-IPAddress local_IP(10, 0, 0, IP_ADDR_LAST_OCTET);
-IPAddress gateway(10, 0, 0, 1);
-IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(8, 8, 8, 8);   // optional
-IPAddress secondaryDNS(8, 8, 4, 4); // optional
-
-//MQTT Config
-#ifdef IMAC
-const char* mqtt_server = "10.0.0.26"; // PC IP running Mosquitto
-#endif
-const int mqtt_port = 1883;
-const char* deviceId = DEVICE_ID;
-WiFiClient espClient;
-PubSubClient client(espClient);
- 
-
-int zero_steer_digital = 119; //This corresponds to about 1.55V
-int zero_throttle_digital = 119; //This corresponds to about 1.55V
+int zero_steer_digital = 135; //This corresponds to about 1.7V Important: This must be the same as the python config
+int zero_throttle_digital = 135; //This corresponds to about 1.7V Important: This must be the same as the python config
 
 int commanded_throttle = zero_throttle_digital; // throttle received over serial
 int steering = zero_steer_digital;
@@ -42,7 +16,6 @@ void pair_with_car() {
   // Dummy function to illustrate the use of delay()
   dacWrite(DAC_STEERING_PIN, zero_steer_digital);
   dacWrite(DAC_THROTTLE_PIN, zero_throttle_digital);
-  delay(10000);
 }
 
 void initWiFi() {
