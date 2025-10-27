@@ -4,30 +4,25 @@ import serial
 import time
 import json
 
-broker = "10.0.0.26"  # PC IP
+broker = "10.0.0.26"#"192.168.137.141"  # PC IP
 mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 devices = ["esp32-01", "esp32-02"]
+last_send_time = None
 def on_connect(client, userdata, flags, reason_code, properties):
     print(f"Connected with result code {reason_code}")
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
    # client.subscribe("$SYS/#")
-    client.subscribe(f"devices/{devices[0]}/echo/time")
+    client.subscribe(f"devices/{devices[0]}/echo/time", qos=0)
+
+
 
 def on_message(client, userdata, msg):
-    print(msg.topic+" "+str(msg.payload))
-    t_recv = time.time()
-    if "echo/time" in msg.topic:
-        try:
-            data = json.loads(msg.payload.decode())
-            t_send = data["t_send"]
-            rtt_ms = (t_recv - t_send) * 1000
-            latency_ms = rtt_ms / 2
-            print(f"t_send: {t_send}, t_recv: {t_recv}")
-            print(f"Round-trip time: {rtt_ms:.2f} ms")
-            print(f"One-way latency ≈ {latency_ms:.2f} ms")
-        except (json.JSONDecodeError, KeyError) as e:
-            print(f"Error parsing timing message: {e}")
+    global last_send_time
+    if "echo/time" in msg.topic and last_send_time:
+        latency_ms = (time.time() - last_send_time) * 1000 / 2
+        print(f"Latency: {latency_ms:.1f}ms")
+
 
 mqttc.on_connect = on_connect
 mqttc.on_message = on_message
@@ -55,9 +50,9 @@ try:
             print(f"Throttle: {throttle}, Steering: {steering}")
             mqttc.publish(f"devices/{devices[0]}/set/throttle", str(throttle))
             mqttc.publish(f"devices/{devices[0]}/set/steering", str(steering))
-            t_send = time.time()
-            payload = json.dumps({"t_send": t_send})
-            mqttc.publish(f"devices/{devices[0]}/set/time", payload)
+            last_send_time = time.time()
+            payload = json.dumps({"t_send": last_send_time})
+            mqttc.publish(f"devices/{devices[0]}/set/time", payload, qos=0)
         except ValueError:
             print("Please enter valid integer numbers.")
         # write_serial(command + b"\n")
