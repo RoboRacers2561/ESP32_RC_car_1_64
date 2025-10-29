@@ -1,9 +1,10 @@
+#include "debug.h"
 #include "driver/ledc.h"
-#include <Arduino.h>
-#include <WiFi.h>
-
 #include "mqtt.h"
 #include "pins.h"
+#include <Arduino.h>
+#include <WiFi.h>
+#include <espnow.h>
 
 #define WAIT_TIME_ms 2000 // How long to wait for the RC controller to connect
 #ifdef UBC
@@ -31,17 +32,19 @@ IPAddress secondaryDNS(8, 8, 4, 4);
 const char *mqtt_server =
     "10.0.0.26"; //"192.168.137.141"; // PC IP running Mosquitto
 #endif
+
+#ifdef MQTT
 const int mqtt_port = 1883;
 const char *deviceId = DEVICE_ID;
 WiFiClient espClient;
 PubSubClient client(espClient);
-
 unsigned long callback_count = 0;
 unsigned long last_report_time = 0;
 unsigned long total_callback_time = 0;
 unsigned long max_callback_time = 0;
 unsigned long loop_count = 0;
 bool performance_monitoring = true;
+#endif
 
 int zero_steer_digital = 135; // This corresponds to about 1.7V Important: This
                               // must be the same as the python config
@@ -62,6 +65,8 @@ void initWiFi() {
     Serial.println("STA Failed to configure");
   }
   WiFi.mode(WIFI_STA);
+  Serial.print(WiFi.macAddress());
+#ifdef MQTT
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi ..");
   while (WiFi.status() != WL_CONNECTED) {
@@ -72,24 +77,30 @@ void initWiFi() {
   WiFi.setSleep(false);
   int rssi = WiFi.RSSI();
   Serial.printf("WiFi Signal: %d dBm\n", rssi);
+#endif
 }
 
 void setup() {
   Serial.begin(115200);
-
   pinMode(LED_PIN, OUTPUT);
-
   pair_with_car();
   // Wifi setup
   initWiFi();
+#ifdef MQTT
   // MQTT setup
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
-  Serial.println("\n===== ESP32 RC Car Controller =====");
-  Serial.printf("Device ID: %s\n", deviceId);
-  Serial.printf("MQTT Server: %s:%d\n", mqtt_server, mqtt_port);
-  Serial.println("Performance monitoring: ENABLED");
-  Serial.println("===================================\n");
+#endif
+#ifdef ESPNOW
+  // Init ESP-NOW
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+  esp_now_register_send_cb(OnDataSent);
+  esp_now_register_recv_cb(OnDataRecv);
+  addPeer(broadcastAddress);
+#endif
 }
 
 /**
@@ -105,112 +116,65 @@ void setup() {
  */
 
 int readThrottle(String cmd) {
-
   if (cmd.startsWith("t:")) {
     String val = cmd.substring(2);
     return val.toInt();
   }
-
   return -1;
 }
 
 int readSteering(String cmd) {
-
   if (cmd.startsWith("s:")) {
     String val = cmd.substring(2);
     return val.toInt();
   }
-
   return -1;
 }
 
 void loop() {
 
-  if (!client.connected())
+#ifdef MQTT
+  if (!client.connected()) {
     reconnect();
+  }
   client.loop();
+#endif
+#ifdef ESPNOW
+  // Receiving a command from laptop:
+  if (Serial.available()) {
 
-  if (performance_monitoring) {
-    loop_count++;
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim(); // remove any whitespace/newline characters
+    DEBUG_PRINTLN("ESP: Received command: ");
+    DEBUG_PRINTLN(cmd);
 
-    // Report performance every 5 seconds
-    unsigned long now = millis();
-    if (now - last_report_time >= 5000) {
-      if (callback_count > 0) {
-        float avg_time = total_callback_time / (float)callback_count;
-        float messages_per_sec = callback_count / 5.0;
-        float loop_freq = loop_count / 5.0;
+    int speed = readThrottle(cmd);
+    if (speed != -1) {
+      commanded_throttle = speed;
+    }
+    int steer = readSteering(cmd);
+    if (steer != -1) {
+      steering = steer;
+    }
+    if (speed != -1 || steer != -1) {
+      struct_message outgoing_msg;
+      strcpy(outgoing_msg.msg, "CMD");
+      outgoing_msg.throttle = commanded_throttle;
+      outgoing_msg.steering = steering;
+      outgoing_msg.send = true;
 
-        Serial.println("\n===== PERFORMANCE REPORT =====");
-        Serial.printf("Messages received: %lu (%.1f msg/sec)\n", callback_count,
-                      messages_per_sec);
-        Serial.printf("Avg callback time: %.2f us\n", avg_time);
-        Serial.printf("Max callback time: %lu us\n", max_callback_time);
-        Serial.printf("Loop frequency: %.1f Hz\n", loop_freq);
-
-        // Status assessment
-        if (messages_per_sec >= 45) {
-          Serial.println("Status: EXCELLENT - Handling 50+ FPS");
-        } else if (messages_per_sec >= 30) {
-          Serial.println("Status: GOOD - Smooth control");
-        } else if (messages_per_sec >= 20) {
-          Serial.println("Status: OK - Acceptable");
-        } else if (messages_per_sec >= 5) {
-          Serial.println("Status: LOW - Check Python polling rate");
-        } else {
-          Serial.println("Status: WARNING - Very low message rate");
-        }
-
-        // Loop frequency warning
-        if (loop_freq < 1000) {
-          Serial.printf("WARNING: Loop frequency low (%.1f Hz)\n", loop_freq);
-          Serial.println("Check for blocking code in loop()");
-        }
-
-        // Latency estimate
-        if (avg_time < 500) {
-          Serial.println("Callback latency: Excellent (<0.5ms)");
-        } else if (avg_time < 1000) {
-          Serial.println("Callback latency: Good (<1ms)");
-        } else {
-          Serial.println("Callback latency: Consider optimization");
-        }
-
-        Serial.println("==============================\n");
+      // Send to broadcast address (or specific peer)
+      // TODO: Update to add peer address in the serial command
+      esp_err_t result = esp_now_send(
+          broadcastAddress, (uint8_t *)&outgoing_msg, sizeof(outgoing_msg));
+#ifdef DEBUG
+      if (result == ESP_OK) {
+        DEBUG_PRINTLN("ESP-NOW: Message sent successfully");
       } else {
-        Serial.println("No messages received in last 5 seconds");
+        DEBUG_PRINTLN("ESP-NOW: Error sending message");
       }
-
-      // Reset counters
-      callback_count = 0;
-      total_callback_time = 0;
-      max_callback_time = 0;
-      loop_count = 0;
-      last_report_time = now;
+#endif
     }
   }
-
-  // Receiving a command from laptop:
-  //  if (Serial.available()) {
-  //
-  //    String cmd = Serial.readStringUntil('\n');
-  //    cmd.trim(); // remove any whitespace/newline characters
-  //    Serial.print("ESP: Received command: ");
-  //    Serial.println(cmd);
-  //
-  //    int speed = readThrottle(cmd);
-  //    if (speed != -1) {
-  //      commanded_throttle = speed;
-  //      dacWrite(DAC_THROTTLE_PIN, commanded_throttle);
-  //      Serial.print("ESP: Updated throttle to ");
-  //      Serial.println(commanded_throttle);
-  //    }
-  //    int steer = readSteering(cmd);
-  //    if (steer != -1) {
-  //      steering = steer;
-  //      dacWrite(DAC_STEERING_PIN, steering);
-  //      Serial.print("ESP: Updated steering to ");
-  //      Serial.println(steering);
-  //    }
-  //  }
+#endif
 }
