@@ -46,11 +46,13 @@ unsigned long loop_count = 0;
 bool performance_monitoring = true;
 #endif
 
-int zero_steer_digital = 135; // This corresponds to about 1.7V Important: This
-                              // must be the same as the python config
-int zero_throttle_digital = 135; // This corresponds to about 1.7V Important:
-                                 // This must be the same as the python config
-
+#ifdef TTR
+int zero_steer_digital = 141;
+int zero_throttle_digital = 122;
+#else
+int zero_steer_digital = 135;
+int zero_throttle_digital = 135;
+#endif
 int commanded_throttle = zero_throttle_digital; // throttle received over serial
 int steering = zero_steer_digital;
 
