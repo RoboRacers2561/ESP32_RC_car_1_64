@@ -25,27 +25,6 @@ IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
 #endif
 
-// WIFI config
-
-// MQTT Config
-#ifdef IMAC
-const char *mqtt_server =
-    "10.0.0.26"; //"192.168.137.141"; // PC IP running Mosquitto
-#endif
-
-#ifdef MQTT
-const int mqtt_port = 1883;
-const char *deviceId = DEVICE_ID;
-WiFiClient espClient;
-PubSubClient client(espClient);
-unsigned long callback_count = 0;
-unsigned long last_report_time = 0;
-unsigned long total_callback_time = 0;
-unsigned long max_callback_time = 0;
-unsigned long loop_count = 0;
-bool performance_monitoring = true;
-#endif
-
 #ifdef TTR
 int zero_steer_digital = 141;
 int zero_throttle_digital = 122;
@@ -68,18 +47,6 @@ void initWiFi() {
   }
   WiFi.mode(WIFI_STA);
   Serial.print(WiFi.macAddress());
-#ifdef MQTT
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi ..");
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print('.');
-    delay(1000);
-  }
-  Serial.println(WiFi.localIP());
-  WiFi.setSleep(false);
-  int rssi = WiFi.RSSI();
-  Serial.printf("WiFi Signal: %d dBm\n", rssi);
-#endif
 }
 
 void setup() {
@@ -88,11 +55,6 @@ void setup() {
   pair_with_car();
   // Wifi setup
   initWiFi();
-#ifdef MQTT
-  // MQTT setup
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
-#endif
 #ifdef ESPNOW
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
@@ -135,18 +97,20 @@ int readSteering(String cmd) {
 
 void loop() {
 
-#ifdef MQTT
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
-#endif
 #ifdef ESPNOW
   // Receiving a command from laptop:
   if (Serial.available()) {
 
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim(); // remove any whitespace/newline characters
+    String msg = Serial.readStringUntil('\n');
+    uint32_t idx = msg.indexOf('/');
+    String id = msg.substring(0, idx);
+    uint8_t byteAddress[6];
+    stringToBytes(id.c_str(), byteAddress, 6);
+    String cmd = msg.substring(idx + 1);
+    cmd.trim(); // remove any whitespace/newline characterso
+    if (!checkPeer(byteAddress)) {
+      addPeer(byteAddress);
+    }
     DEBUG_PRINTLN("ESP: Received command: ");
     DEBUG_PRINTLN(cmd);
 
@@ -167,15 +131,17 @@ void loop() {
 
       // Send to broadcast address (or specific peer)
       // TODO: Update to add peer address in the serial command
-      esp_err_t result = esp_now_send(
-          broadcastAddress, (uint8_t *)&outgoing_msg, sizeof(outgoing_msg));
+      if (checkPeer(byteAddress)) {
+        esp_err_t result = esp_now_send(byteAddress, (uint8_t *)&outgoing_msg,
+                                        sizeof(outgoing_msg));
 #ifdef DEBUG
-      if (result == ESP_OK) {
-        DEBUG_PRINTLN("ESP-NOW: Message sent successfully");
-      } else {
-        DEBUG_PRINTLN("ESP-NOW: Error sending message");
-      }
+        if (result == ESP_OK) {
+          DEBUG_PRINTLN("ESP-NOW: Message sent successfully");
+        } else {
+          DEBUG_PRINTLN("ESP-NOW: Error sending message");
+        }
 #endif
+      }
     }
   }
 #endif
