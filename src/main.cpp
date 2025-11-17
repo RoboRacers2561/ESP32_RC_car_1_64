@@ -25,7 +25,7 @@ IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
 #endif
 
-#ifdef TTR
+#if TTR
 int zero_steer_digital = 141;
 int zero_throttle_digital = 122;
 #else
@@ -55,7 +55,7 @@ void setup() {
   pair_with_car();
   // Wifi setup
   initWiFi();
-#ifdef ESPNOW
+#if ESPNOW
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
@@ -97,7 +97,7 @@ int readSteering(String cmd) {
 
 void loop() {
 
-#ifdef ESPNOW
+#if ESPNOW
   // Receiving a command from laptop:
   if (Serial.available()) {
 
@@ -113,28 +113,22 @@ void loop() {
     }
     DEBUG_PRINTLN("ESP: Received command: ");
     DEBUG_PRINTLN(cmd);
-
+    struct_message outgoing_msg;
     int speed = readThrottle(cmd);
     if (speed != -1) {
-      commanded_throttle = speed;
+      outgoing_msg.value = speed;
+      outgoing_msg.throttle = 1;
     }
     int steer = readSteering(cmd);
     if (steer != -1) {
-      steering = steer;
+      outgoing_msg.value = steer;
+      outgoing_msg.throttle = 0;
     }
     if (speed != -1 || steer != -1) {
-      struct_message outgoing_msg;
-      strcpy(outgoing_msg.msg, "CMD");
-      outgoing_msg.throttle = commanded_throttle;
-      outgoing_msg.steering = steering;
-      outgoing_msg.send = true;
-
-      // Send to broadcast address (or specific peer)
-      // TODO: Update to add peer address in the serial command
       if (checkPeer(byteAddress)) {
         esp_err_t result = esp_now_send(byteAddress, (uint8_t *)&outgoing_msg,
                                         sizeof(outgoing_msg));
-#ifdef DEBUG
+#if DEBUG
         if (result == ESP_OK) {
           DEBUG_PRINTLN("ESP-NOW: Message sent successfully");
         } else {

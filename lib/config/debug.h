@@ -1,8 +1,4 @@
-#ifndef DEBUG
-#define DEBUG 1 // Default to debug on
-#endif
-
-#ifdef DEBUG
+#if DEBUG
 #define DEBUG_PRINT(x) Serial.print(x)
 #define DEBUG_PRINTLN(x) Serial.println(x)
 #define DEBUG_PRINT_HEX(x) Serial.println(x, HEX)

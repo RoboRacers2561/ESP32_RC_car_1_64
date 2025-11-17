@@ -19,11 +19,13 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incoming_data, int len) {
   DEBUG_PRINTLN("Bytes received: ");
   DEBUG_PRINT(len);
   DEBUG_PRINTLN("Data: ");
-  DEBUG_PRINT(incoming_message.msg);
-  DEBUG_PRINTLN(incoming_message.throttle);
-  DEBUG_PRINTLN(incoming_message.steering);
-  dacWrite(DAC_STEERING_PIN, incoming_message.throttle);
-  dacWrite(DAC_THROTTLE_PIN, incoming_message.steering);
+  DEBUG_PRINT(incoming_message.throttle);
+  DEBUG_PRINTLN(incoming_message.value);
+  if (incoming_message.throttle) {
+    dacWrite(DAC_THROTTLE_PIN, incoming_message.value);
+  } else {
+    dacWrite(DAC_STEERING_PIN, incoming_message.value);
+  }
 }
 
 void addPeer(uint8_t *macAddress) {
