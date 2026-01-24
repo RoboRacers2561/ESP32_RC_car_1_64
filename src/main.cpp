@@ -1,21 +1,12 @@
 #include "debug.h"
 #include "driver/ledc.h"
-#include "mqtt.h"
 #include "pins.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <espnow.h>
 
 #define WAIT_TIME_ms 2000 // How long to wait for the RC controller to connect
-#ifdef UBC
-const char *ssid = "SharkTank";
-const char *password = "nurgi2021";
-IPAddress local_IP(192, 168, 137, IP_ADDR_LAST_OCTET);
-IPAddress gateway(192, 168, 137, 1);
-IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(8, 8, 8, 8);   // optional
-IPAddress secondaryDNS(8, 8, 4, 4); // optional
-#else
+
 const char *ssid = "ORBI27";
 const char *password = "UBC2022!";
 IPAddress local_IP(10, 0, 0, IP_ADDR_LAST_OCTET);
@@ -23,7 +14,6 @@ IPAddress gateway(10, 0, 0, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
-#endif
 
 #if TTR
 int zero_steer_digital = 141;
