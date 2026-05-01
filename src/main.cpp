@@ -7,8 +7,6 @@
 
 #define WAIT_TIME_ms 2000 // How long to wait for the RC controller to connect
 
-const char *ssid = "ORBI27";
-const char *password = "UBC2022!";
 IPAddress local_IP(10, 0, 0, IP_ADDR_LAST_OCTET);
 IPAddress gateway(10, 0, 0, 1);
 IPAddress subnet(255, 255, 255, 0);

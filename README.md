@@ -119,7 +119,6 @@ The firmware will:
 
 ## Notes
 
-- The Wi‑Fi credentials are hard-coded in src/main.cpp and should be changed for your network.
 - The project includes PubSubClient and ArduinoJson in the PlatformIO configuration, but the active code path in this repository uses ESP-NOW.
 - The ESP-NOW helper code currently contains a few pre-defined MAC addresses that can be reused for known peers.
 
@@ -128,8 +127,5 @@ The firmware will:
 - No serial output: confirm the monitor baud rate is 115200.
 - ESP-NOW send failures: verify the destination MAC address and make sure the peer has been added successfully.
 - Unexpected steering or throttle values: check the command prefix (t: or s:) and confirm the numeric range.
-- Wrong control center point: adjust the zero-position calibration values controlled by the TTR build flag.
 
-## License
 
-No license file is currently included. Add one if you plan to share or publish the project.
